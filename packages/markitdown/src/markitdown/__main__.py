@@ -103,6 +103,16 @@ def main():
         action="store_true",
         help="List installed 3rd-party plugins. Plugins are loaded when using the -p or --use-plugin option.",
     )
+    parser.add_argument(
+        "--use-llm",
+        action="store_true",
+        help="Use Vision LLM to extract text for the image.",
+    )
+    parser.add_argument(
+        "--llm-prompt",
+        type=str,
+        help="Vision LLM prompt.",
+    )
 
     parser.add_argument("filename", nargs="?")
     args = parser.parse_args()
@@ -140,14 +150,8 @@ def main():
             charset_hint = None
 
     stream_info: str | None = None
-    if (
-        extension_hint is not None
-        or mime_type_hint is not None
-        or charset_hint is not None
-    ):
-        stream_info = StreamInfo(
-            extension=extension_hint, mimetype=mime_type_hint, charset=charset_hint
-        )
+    if extension_hint is not None or mime_type_hint is not None or charset_hint is not None:
+        stream_info = StreamInfo(extension=extension_hint, mimetype=mime_type_hint, charset=charset_hint)
 
     if args.list_plugins:
         # List installed plugins, then exit
@@ -155,28 +159,26 @@ def main():
         plugin_entry_points = list(entry_points(group="markitdown.plugin"))
         if len(plugin_entry_points) == 0:
             print("  * No 3rd-party plugins installed.")
-            print(
-                "\nFind plugins by searching for the hashtag #markitdown-plugin on GitHub.\n"
-            )
+            print("\nFind plugins by searching for the hashtag #markitdown-plugin on GitHub.\n")
         else:
             for entry_point in plugin_entry_points:
                 print(f"  * {entry_point.name:<16}\t(package: {entry_point.value})")
-            print(
-                "\nUse the -p (or --use-plugins) option to enable 3rd-party plugins.\n"
-            )
+            print("\nUse the -p (or --use-plugins) option to enable 3rd-party plugins.\n")
         sys.exit(0)
 
     if args.use_docintel:
         if args.endpoint is None:
-            _exit_with_error(
-                "Document Intelligence Endpoint is required when using Document Intelligence."
-            )
+            _exit_with_error("Document Intelligence Endpoint is required when using Document Intelligence.")
         elif args.filename is None:
             _exit_with_error("Filename is required when using Document Intelligence.")
 
-        markitdown = MarkItDown(
-            enable_plugins=args.use_plugins, docintel_endpoint=args.endpoint
-        )
+        markitdown = MarkItDown(enable_plugins=args.use_plugins, docintel_endpoint=args.endpoint)
+    elif args.use_llm:
+        from openai import OpenAI
+        import os
+
+        llm_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=os.getenv("OPENAI_BASE_URL"))
+        markitdown = MarkItDown(enable_plugins=args.use_plugins, llm_client=llm_client, llm_prompt=args.llm_prompt)
     else:
         markitdown = MarkItDown(enable_plugins=args.use_plugins)
 

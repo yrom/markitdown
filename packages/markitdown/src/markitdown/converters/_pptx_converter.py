@@ -72,9 +72,7 @@ class PptxConverter(DocumentConverter):
                     extension=".pptx",
                     feature="pptx",
                 )
-            ) from _dependency_exc_info[
-                1
-            ].with_traceback(  # type: ignore[union-attr]
+            ) from _dependency_exc_info[1].with_traceback(  # type: ignore[union-attr]
                 _dependency_exc_info[2]
             )
 
@@ -101,7 +99,7 @@ class PptxConverter(DocumentConverter):
                     # Potentially generate a description using an LLM
                     llm_client = kwargs.get("llm_client")
                     llm_model = kwargs.get("llm_model")
-                    if llm_client is not None and llm_model is not None:
+                    if llm_client is not None and llm_model is not None and hasattr(shape, "image"):
                         # Prepare a file_stream and stream_info for the image data
                         image_filename = shape.image.filename
                         image_extension = None

@@ -51,12 +51,8 @@ from ._exceptions import (
 
 
 # Lower priority values are tried first.
-PRIORITY_SPECIFIC_FILE_FORMAT = (
-    0.0  # e.g., .docx, .pdf, .xlsx, Or specific pages, e.g., wikipedia
-)
-PRIORITY_GENERIC_FILE_FORMAT = (
-    10.0  # Near catch-all converters for mimetypes like text/*, etc.
-)
+PRIORITY_SPECIFIC_FILE_FORMAT = 0.0  # e.g., .docx, .pdf, .xlsx, Or specific pages, e.g., wikipedia
+PRIORITY_GENERIC_FILE_FORMAT = 10.0  # Near catch-all converters for mimetypes like text/*, etc.
 
 
 _plugins: Union[None, List[Any]] = None  # If None, plugins have not been loaded yet.
@@ -121,9 +117,7 @@ class MarkItDown:
         # Register the converters
         self._converters: List[ConverterRegistration] = []
 
-        if (
-            enable_builtins is None or enable_builtins
-        ):  # Default to True when not specified
+        if enable_builtins is None or enable_builtins:  # Default to True when not specified
             self.enable_builtins(**kwargs)
 
         if enable_plugins:
@@ -139,6 +133,7 @@ class MarkItDown:
             # TODO: Move these into converter constructors
             self._llm_client = kwargs.get("llm_client")
             self._llm_model = kwargs.get("llm_model")
+            self._llm_prompt = kwargs.get("llm_prompt")
             self._exiftool_path = kwargs.get("exiftool_path")
             self._style_map = kwargs.get("style_map")
 
@@ -169,15 +164,9 @@ class MarkItDown:
             # Register converters for successful browsing operations
             # Later registrations are tried first / take higher priority than earlier registrations
             # To this end, the most specific converters should appear below the most generic converters
-            self.register_converter(
-                PlainTextConverter(), priority=PRIORITY_GENERIC_FILE_FORMAT
-            )
-            self.register_converter(
-                ZipConverter(markitdown=self), priority=PRIORITY_GENERIC_FILE_FORMAT
-            )
-            self.register_converter(
-                HtmlConverter(), priority=PRIORITY_GENERIC_FILE_FORMAT
-            )
+            self.register_converter(PlainTextConverter(), priority=PRIORITY_GENERIC_FILE_FORMAT)
+            self.register_converter(ZipConverter(markitdown=self), priority=PRIORITY_GENERIC_FILE_FORMAT)
+            self.register_converter(HtmlConverter(), priority=PRIORITY_GENERIC_FILE_FORMAT)
             self.register_converter(RssConverter())
             self.register_converter(WikipediaConverter())
             self.register_converter(YouTubeConverter())
@@ -195,9 +184,7 @@ class MarkItDown:
             # Register Document Intelligence converter at the top of the stack if endpoint is provided
             docintel_endpoint = kwargs.get("docintel_endpoint")
             if docintel_endpoint is not None:
-                self.register_converter(
-                    DocumentIntelligenceConverter(endpoint=docintel_endpoint)
-                )
+                self.register_converter(DocumentIntelligenceConverter(endpoint=docintel_endpoint))
 
             self._builtins_enabled = True
         else:
@@ -239,11 +226,7 @@ class MarkItDown:
 
         # Local path or url
         if isinstance(source, str):
-            if (
-                source.startswith("http://")
-                or source.startswith("https://")
-                or source.startswith("file://")
-            ):
+            if source.startswith("http://") or source.startswith("https://") or source.startswith("file://"):
                 # Rename the url argument to mock_url
                 # (Deprecated -- use stream_info)
                 _kwargs = {k: v for k, v in kwargs.items()}
@@ -261,16 +244,10 @@ class MarkItDown:
         elif isinstance(source, requests.Response):
             return self.convert_response(source, stream_info=stream_info, **kwargs)
         # Binary stream
-        elif (
-            hasattr(source, "read")
-            and callable(source.read)
-            and not isinstance(source, io.TextIOBase)
-        ):
+        elif hasattr(source, "read") and callable(source.read) and not isinstance(source, io.TextIOBase):
             return self.convert_stream(source, stream_info=stream_info, **kwargs)
         else:
-            raise TypeError(
-                f"Invalid source type: {type(source)}. Expected str, requests.Response, BinaryIO."
-            )
+            raise TypeError(f"Invalid source type: {type(source)}. Expected str, requests.Response, BinaryIO.")
 
     def convert_local(
         self,
@@ -304,9 +281,7 @@ class MarkItDown:
             base_guess = base_guess.copy_and_update(url=url)
 
         with open(path, "rb") as fh:
-            guesses = self._get_stream_info_guesses(
-                file_stream=fh, base_guess=base_guess
-            )
+            guesses = self._get_stream_info_guesses(file_stream=fh, base_guess=base_guess)
             return self._convert(file_stream=fh, stream_info_guesses=guesses, **kwargs)
 
     def convert_stream(
@@ -351,9 +326,7 @@ class MarkItDown:
             stream = buffer
 
         # Add guesses based on stream content
-        guesses = self._get_stream_info_guesses(
-            file_stream=stream, base_guess=base_guess or StreamInfo()
-        )
+        guesses = self._get_stream_info_guesses(file_stream=stream, base_guess=base_guess or StreamInfo())
         return self._convert(file_stream=stream, stream_info_guesses=guesses, **kwargs)
 
     def convert_url(
@@ -362,9 +335,7 @@ class MarkItDown:
         *,
         stream_info: Optional[StreamInfo] = None,
         file_extension: Optional[str] = None,  # Deprecated -- use stream_info
-        mock_url: Optional[
-            str
-        ] = None,  # Mock the request as if it came from a different URL
+        mock_url: Optional[str] = None,  # Mock the request as if it came from a different URL
         **kwargs: Any,
     ) -> DocumentConverterResult:  # TODO: fix kwargs type
         # Send a HTTP request to the URL
@@ -445,14 +416,10 @@ class MarkItDown:
         buffer.seek(0)
 
         # Convert
-        guesses = self._get_stream_info_guesses(
-            file_stream=buffer, base_guess=base_guess
-        )
+        guesses = self._get_stream_info_guesses(file_stream=buffer, base_guess=base_guess)
         return self._convert(file_stream=buffer, stream_info_guesses=guesses, **kwargs)
 
-    def _convert(
-        self, *, file_stream: BinaryIO, stream_info_guesses: List[StreamInfo], **kwargs
-    ) -> DocumentConverterResult:
+    def _convert(self, *, file_stream: BinaryIO, stream_info_guesses: List[StreamInfo], **kwargs) -> DocumentConverterResult:
         res: Union[None, DocumentConverterResult] = None
 
         # Keep track of which converters throw exceptions
@@ -470,9 +437,7 @@ class MarkItDown:
             for converter_registration in sorted_registrations:
                 converter = converter_registration.converter
                 # Sanity check -- make sure the cur_pos is still the same
-                assert (
-                    cur_pos == file_stream.tell()
-                ), f"File stream position should NOT change between guess iterations"
+                assert cur_pos == file_stream.tell(), "File stream position should NOT change between guess iterations"
 
                 _kwargs = {k: v for k, v in kwargs.items()}
 
@@ -482,6 +447,9 @@ class MarkItDown:
 
                 if "llm_model" not in _kwargs and self._llm_model is not None:
                     _kwargs["llm_model"] = self._llm_model
+
+                if "llm_prompt" not in _kwargs and self._llm_prompt is not None:
+                    _kwargs["llm_prompt"] = self._llm_prompt
 
                 if "style_map" not in _kwargs and self._style_map is not None:
                     _kwargs["style_map"] = self._style_map
@@ -508,28 +476,20 @@ class MarkItDown:
                     pass
 
                 # accept() should not have changed the file stream position
-                assert (
-                    cur_pos == file_stream.tell()
-                ), f"{type(converter).__name__}.accept() should NOT change the file_stream position"
+                assert cur_pos == file_stream.tell(), f"{type(converter).__name__}.accept() should NOT change the file_stream position"
 
                 # Attempt the conversion
                 if _accepts:
                     try:
                         res = converter.convert(file_stream, stream_info, **_kwargs)
                     except Exception:
-                        failed_attempts.append(
-                            FailedConversionAttempt(
-                                converter=converter, exc_info=sys.exc_info()
-                            )
-                        )
+                        failed_attempts.append(FailedConversionAttempt(converter=converter, exc_info=sys.exc_info()))
                     finally:
                         file_stream.seek(cur_pos)
 
                 if res is not None:
                     # Normalize the content
-                    res.text_content = "\n".join(
-                        [line.rstrip() for line in re.split(r"\r?\n", res.text_content)]
-                    )
+                    res.text_content = "\n".join([line.rstrip() for line in re.split(r"\r?\n", res.text_content)])
                     res.text_content = re.sub(r"\n{3,}", "\n\n", res.text_content)
                     return res
 
@@ -538,9 +498,7 @@ class MarkItDown:
             raise FileConversionException(attempts=failed_attempts)
 
         # Nothing can handle it!
-        raise UnsupportedFormatException(
-            f"Could not convert stream to Markdown. No converter attempted a conversion, suggesting that the filetype is simply not supported."
-        )
+        raise UnsupportedFormatException("Could not convert stream to Markdown. No converter attempted a conversion, suggesting that the filetype is simply not supported.")
 
     def register_page_converter(self, converter: DocumentConverter) -> None:
         """DEPRECATED: User register_converter instead."""
@@ -578,13 +536,9 @@ class MarkItDown:
         after the built-ins. For example, a plugin with priority 9 will run
         before the PlainTextConverter, but after the built-in converters.
         """
-        self._converters.insert(
-            0, ConverterRegistration(converter=converter, priority=priority)
-        )
+        self._converters.insert(0, ConverterRegistration(converter=converter, priority=priority))
 
-    def _get_stream_info_guesses(
-        self, file_stream: BinaryIO, base_guess: StreamInfo
-    ) -> List[StreamInfo]:
+    def _get_stream_info_guesses(self, file_stream: BinaryIO, base_guess: StreamInfo) -> List[StreamInfo]:
         """
         Given a base guess, attempt to guess or expand on the stream info using the stream content (via magika).
         """
@@ -595,9 +549,7 @@ class MarkItDown:
 
         # If there's an extension and no mimetype, try to guess the mimetype
         if base_guess.mimetype is None and base_guess.extension is not None:
-            _m, _ = mimetypes.guess_type(
-                "placeholder" + base_guess.extension, strict=False
-            )
+            _m, _ = mimetypes.guess_type("placeholder" + base_guess.extension, strict=False)
             if _m is not None:
                 enhanced_guess = enhanced_guess.copy_and_update(mimetype=_m)
 
@@ -628,31 +580,20 @@ class MarkItDown:
 
                 # Determine if the guess is compatible with the base guess
                 compatible = True
-                if (
-                    base_guess.mimetype is not None
-                    and base_guess.mimetype != result.prediction.output.mime_type
-                ):
+                if base_guess.mimetype is not None and base_guess.mimetype != result.prediction.output.mime_type:
                     compatible = False
 
-                if (
-                    base_guess.extension is not None
-                    and base_guess.extension.lstrip(".")
-                    not in result.prediction.output.extensions
-                ):
+                if base_guess.extension is not None and base_guess.extension.lstrip(".") not in result.prediction.output.extensions:
                     compatible = False
 
-                if (
-                    base_guess.charset is not None
-                    and self._normalize_charset(base_guess.charset) != charset
-                ):
+                if base_guess.charset is not None and self._normalize_charset(base_guess.charset) != charset:
                     compatible = False
 
                 if compatible:
                     # Add the compatible base guess
                     guesses.append(
                         StreamInfo(
-                            mimetype=base_guess.mimetype
-                            or result.prediction.output.mime_type,
+                            mimetype=base_guess.mimetype or result.prediction.output.mime_type,
                             extension=base_guess.extension or guessed_extension,
                             charset=base_guess.charset or charset,
                             filename=base_guess.filename,
